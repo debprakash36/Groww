@@ -152,17 +152,13 @@ def create_app() -> FastAPI:
     # The web UI is a separate origin, so its XHRs need this. Origins are read from
     # settings rather than hardcoded, and default to localhost only: a misconfigured
     # deployment should refuse browser origins, not allow all of them.
+    is_local = settings.environment in {"local", "test"}
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origin_list,
-        # Only methods the client actually uses. PUT appears for feedback votes.
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-Trace-Id"],
-        # Bearer tokens travel in a header, not a cookie, so credentialed CORS stays
-        # off. A wildcard origin plus cookies would be a cross-site vulnerability.
+        allow_origins=["*"] if is_local else settings.cors_origin_list,
+        allow_methods=["*"] if is_local else ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["*"] if is_local else ["Authorization", "Content-Type", "X-Trace-Id"],
         allow_credentials=False,
-        # Preflight responses are cheap and static; a short cache keeps the browser
-        # from re-asking on every request.
         max_age=600,
     )
 

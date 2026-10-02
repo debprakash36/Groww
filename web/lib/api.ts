@@ -8,22 +8,31 @@
 
 import { authHeaders, clearToken } from "./auth";
 
-const RAW_BASE =
-  process.env.NEXT_PUBLIC_API_URL ??
-  process.env.NEXT_PUBLIC_API_BASE ??
-  "http://127.0.0.1:8000";
-
-export const API_BASE = RAW_BASE.replace(/\/$/, "");
-
-export const FETCH_TIMEOUT_MS = 60_000;
-
-export const UNREACHABLE_MESSAGE =
-  "Can't reach the server. It may be waking up, please retry in ~30s";
+export function getApiBase(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
+  }
+  if (process.env.NEXT_PUBLIC_API_BASE) {
+    return process.env.NEXT_PUBLIC_API_BASE.replace(/\/$/, "");
+  }
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname || "127.0.0.1";
+    return `http://${host}:8000`;
+  }
+  return "http://127.0.0.1:8000";
+}
 
 export function apiUrl(path: string): string {
   const suffix = path.startsWith("/") ? path : `/${path}`;
-  return `${API_BASE}${suffix}`;
+  return `${getApiBase()}${suffix}`;
 }
+
+export const FETCH_TIMEOUT_MS = 60_000;
+
+export const API_BASE = getApiBase();
+
+export const UNREACHABLE_MESSAGE =
+  "Can't reach the backend server. Please ensure it is running at http://127.0.0.1:8000";
 
 export class ApiError extends Error {
   readonly status: number;
