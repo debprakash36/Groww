@@ -10,6 +10,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import SourceViewer from "@/components/SourceViewer";
+import { UNREACHABLE_MESSAGE } from "@/lib/api";
 import type { Source } from "@/lib/types";
 
 const SOURCES: Source[] = [
@@ -152,9 +153,7 @@ describe("SourceViewer", () => {
 
     // Must not surface the browser's own wording: "Failed to fetch" is JS jargon
     // and tells the user nothing actionable.
-    await waitFor(() =>
-      expect(screen.getByText("This passage could not be loaded.")).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText(UNREACHABLE_MESSAGE)).toBeInTheDocument());
     expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
   });
 

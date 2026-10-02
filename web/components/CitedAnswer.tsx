@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
+import MarkdownSafe from "@/components/MarkdownSafe";
 import { sourceLabel, type Source } from "@/lib/types";
 import styles from "./CitedAnswer.module.css";
 
@@ -99,7 +100,11 @@ export default function CitedAnswer({ content, sources }: Props) {
       {parts.map((part, i) => {
         const match = /^\[(\d+)\]$/.exec(part);
         if (!match) {
-          return <Fragment key={i}>{part}</Fragment>;
+          return (
+            <Fragment key={i}>
+              <MarkdownSafe text={part} />
+            </Fragment>
+          );
         }
 
         const index = Number(match[1]);

@@ -72,7 +72,7 @@ chroma-sync:
 	$(PY) scripts/sync_chroma_index.py
 
 dev:
-	$(PY) -m uvicorn app.main:app --reload
+	$(PY) -m uvicorn app.main:app --reload --host 0.0.0.0 --port $${PORT:-8000}
 
 # --- Web UI (Next.js) ------------------------------------------------------
 # Kept separate from the Python targets: the two toolchains have no shared install,

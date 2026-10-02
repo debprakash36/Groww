@@ -83,8 +83,10 @@ services:
         sync: false
       # Frontend origin, set after the web service exists. Default is
       # localhost-only, so an unset value makes the browser block every XHR
-      # rather than silently opening CORS.
-      - key: CORS_ALLOW_ORIGINS
+      # rather than silently opening CORS. ALLOWED_ORIGINS is an alias.
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: FRONTEND_URL
         sync: false
       - key: API_TOKEN
         # Required in production. An empty value leaves upload and delete open.
@@ -104,11 +106,12 @@ services:
   #   Build Command:   npm ci && npm run build
   #   Start Command:   npm start
   #
-  # NEXT_PUBLIC_API_BASE must be set as a BUILD variable, not only at runtime:
-  # next inlines NEXT_PUBLIC_* into the browser bundle, so a value added after
-  # the build is not in the JavaScript the browser downloads and the frontend
-  # silently falls back to http://127.0.0.1:8000. Set it under this service's
-  # environment before the first deploy, then re-deploy so the bundle is rebuilt.
+# NEXT_PUBLIC_API_URL (or NEXT_PUBLIC_API_BASE) must be set as a BUILD
+# variable, not only at runtime: next inlines NEXT_PUBLIC_* into the browser
+# bundle, so a value added after the build is not in the JavaScript the
+# browser downloads and the frontend silently falls back to
+# http://127.0.0.1:8000. Set it under this service's environment before the
+# first deploy, then re-deploy so the bundle is rebuilt.
   # ---------------------------------------------------------------------------
   - type: web
     name: rag-web
@@ -126,6 +129,8 @@ services:
         # local Node 24, so anything modern is fine -- raise this only if the
         # build ever fails on a version skew.
         value: "22"
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
       - key: NEXT_PUBLIC_API_BASE
         sync: false
 

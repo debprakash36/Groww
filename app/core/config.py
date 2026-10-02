@@ -14,14 +14,18 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Process-wide settings, loaded once and validated at startup."""
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+        populate_by_name=True,
+    )
 
     environment: Literal["local", "test", "staging", "production"] = "local"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
@@ -258,7 +262,22 @@ class Settings(BaseSettings):
     # Comma-separated. `*` is accepted but should not be used with credentialed
     # requests; there are none here, but a wildcard silently turns any future
     # cookie-auth addition into a cross-origin vulnerability.
-    cors_allow_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    #
+    # `ALLOWED_ORIGINS` is the Render-facing name; `CORS_ALLOW_ORIGINS` remains
+    # valid. Defaults include the local Next (3000) and Vite (5173) ports.
+    cors_allow_origins: str = Field(
+        default=(
+            "http://localhost:3000,http://127.0.0.1:3000,"
+            "http://localhost:5173,http://127.0.0.1:5173"
+        ),
+        validation_alias=AliasChoices("ALLOWED_ORIGINS", "CORS_ALLOW_ORIGINS"),
+    )
+    #: Public frontend origin (e.g. https://your-web.onrender.com). Merged into
+    #: the CORS allowlist so a Render web service does not need to duplicate it.
+    frontend_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("FRONTEND_URL", "frontend_url"),
+    )
 
     # --- Access --------------------------------------------------------------
     # Empty means open, which is what tests and an unconfigured checkout need.
@@ -269,7 +288,30 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [o.strip() for o in self.cors_allow_origins.split(",") if o.strip()]
+        seen: list[str] = []
+        extras = [self.frontend_url]
+        for raw in [*self.cors_allow_origins.split(","), *extras]:
+            origin = raw.strip().rstrip("/")
+            if origin and origin not in seen:
+                seen.append(origin)
+        return seen
+
+    def missing_required_env(self) -> list[str]:
+        """Names of env vars that will make the process unusable.
+
+        Logged at startup so a Render deploy failure is readable in the logs
+        instead of a traceback from a later factory call.
+        """
+        missing: list[str] = []
+        if self.embedding_provider == "huggingface" and not self.hf_token.strip():
+            missing.append("HF_TOKEN (required when EMBEDDING_PROVIDER=huggingface)")
+        if self.generation_provider == "groq" and not self.groq_api_key.strip():
+            missing.append("GROQ_API_KEY (required when GENERATION_PROVIDER=groq)")
+        if self.vector_store == "pgvector" and self.database_url.startswith("sqlite"):
+            missing.append("DATABASE_URL (Postgres required when VECTOR_STORE=pgvector)")
+        if self.environment in {"production", "staging"} and not self.api_token.strip():
+            missing.append("API_TOKEN (required in staging/production)")
+        return missing
 
     def validate_production(self) -> None:
         """Startup checks that only make sense for a real deployment."""

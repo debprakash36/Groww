@@ -73,4 +73,21 @@ describe("AuthGate", () => {
     await waitFor(() => expect(screen.getByText("inside")).toBeInTheDocument());
     expect(sessionStorage.getItem(TOKEN_KEY)).toBe("secret-token");
   });
+
+  it("does not open the app when the API is unreachable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    );
+    render(
+      <AuthGate>
+        <p>inside</p>
+      </AuthGate>,
+    );
+    expect(await screen.findByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(screen.queryByText("inside")).not.toBeInTheDocument();
+    expect(screen.getByText(/waking up/i)).toBeInTheDocument();
+  });
 });

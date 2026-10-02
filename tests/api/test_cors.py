@@ -8,6 +8,7 @@ behaviour that matters: the local dev origin works, an unrelated origin does not
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from pytest import MonkeyPatch
 
 from app.core.config import Settings
 
@@ -64,10 +65,24 @@ def test_origin_list_ignores_whitespace_and_blanks() -> None:
     assert settings.cors_origin_list == ["http://a.test", "http://b.test"]
 
 
-def test_origin_list_defaults_to_local_dev_only() -> None:
-    settings = Settings()
+def test_origin_list_defaults_to_local_dev_only(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.delenv("CORS_ALLOW_ORIGINS", raising=False)
+    monkeypatch.delenv("ALLOWED_ORIGINS", raising=False)
+    monkeypatch.delenv("FRONTEND_URL", raising=False)
+    settings = Settings(_env_file=None)
 
     assert settings.cors_origin_list == [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
     ]
+
+
+def test_allowed_origins_alias_and_frontend_url(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("ALLOWED_ORIGINS", "https://web.example")
+    monkeypatch.setenv("FRONTEND_URL", "https://web.example/")
+    monkeypatch.delenv("CORS_ALLOW_ORIGINS", raising=False)
+    settings = Settings(_env_file=None)
+
+    assert settings.cors_origin_list == ["https://web.example"]

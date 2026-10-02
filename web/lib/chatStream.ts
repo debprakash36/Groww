@@ -16,6 +16,7 @@
  */
 
 import { authHeaders, clearToken } from "./auth";
+import { ApiError, UNREACHABLE_MESSAGE, apiUrl, fetchWithRetry } from "./api";
 import type { Source } from "./types";
 
 export interface StreamHandlers {
@@ -37,16 +38,29 @@ export async function streamChat(
   handlers: StreamHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8000"}/chat/stream`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify(request),
-    signal,
-  });
+  let response: Response;
+  try {
+    response = await fetchWithRetry(apiUrl("/chat/stream"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        "Cache-Control": "no-cache",
+        ...authHeaders(),
+      },
+      body: JSON.stringify(request),
+      signal,
+    });
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    const message = error instanceof ApiError ? error.message : UNREACHABLE_MESSAGE;
+    handlers.onError("unreachable", message);
+    return;
+  }
 
   // A pre-stream rejection: 400 for the size cap, 429 for the rate limit. The body
   // is the user-safe message the backend already composed.
-    if (!response.ok) {
+  if (!response.ok) {
     if (response.status === 401) clearToken();
     const { message, code } = await readErrorBody(response);
     handlers.onError(code, message);

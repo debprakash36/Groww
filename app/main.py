@@ -105,6 +105,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Validate configuration and ensure the schema exists on startup."""
     settings = get_settings()
     configure_logging(settings.log_level)
+    missing = settings.missing_required_env()
+    if missing:
+        log.error(
+            "startup missing required environment variables: %s",
+            "; ".join(missing),
+        )
     # Fail fast on a misconfigured deployment rather than on the first request.
     settings.validate_production()
     # Register the session factory with the app's own settings before anything can
