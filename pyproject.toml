@@ -18,6 +18,19 @@ dependencies = [
     "pypdf",
     "python-docx",
     "beautifulsoup4",
+    # HTTP client for the HuggingFace embedding and Groq generation providers.
+    # Both are imported at module scope in app/providers/, so this is a runtime
+    # dependency of the app, not a test-only one -- it used to live only in the
+    # `dev` extra, which meant `pip install -e .` produced an install that could
+    # not even be imported on a real deployment.
+    "httpx>=0.27",
+    # `Vector` for the embedding column on the postgresql dialect
+    # (app/db/models.py) and the HNSW index in alembic/versions/0001_init.py.
+    "pgvector>=0.2",
+    # Postgres driver. Required by alembic and SQLAlchemy the moment
+    # DATABASE_URL is a Postgres URL, which it always is in staging/production.
+    # `[binary]` gets prebuilt wheels, so this needs no compiler on Render.
+    "psycopg[binary]>=3.1",
 ]
 
 [project.optional-dependencies]

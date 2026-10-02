@@ -14,7 +14,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -36,6 +36,22 @@ class Settings(BaseSettings):
     # deployments must use Postgres because the pgvector column type is
     # Postgres-specific.
     database_url: str = "sqlite:///./rag.db"
+
+    @field_validator("database_url")
+    @classmethod
+    def _pin_psycopg3(cls, value: str) -> str:
+        """Rewrite a bare `postgresql://` URL to `postgresql+psycopg://`.
+
+        Render hands out `postgresql://…`, and SQLAlchemy resolves that scheme to
+        psycopg2 — a driver this project does not depend on. Without this the
+        deploy fails at `alembic upgrade head` with `ModuleNotFoundError: No
+        module named 'psycopg2'`, which names a package nobody should install
+        rather than the missing dependency that is actually declared. An
+        explicit driver in the URL is left alone, as is SQLite.
+        """
+        if value.startswith("postgresql://"):
+            return value.replace("postgresql://", "postgresql+psycopg://", 1)
+        return value
 
     # --- Embeddings --------------------------------------------------------
     # Pinned. See module docstring.

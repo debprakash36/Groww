@@ -64,14 +64,22 @@ def run_migrations_online() -> None:
         with context.begin_transaction():
             context.run_migrations()
 
+        # pgvector is required on the target database. Checked here rather than
+        # at model import so the failure names migrations, not the app.
+        #
+        # Inside the `with` block on purpose. The connection is closed on exit,
+        # and this was previously called after that -- in staging/production it
+        # raised `ResourceClosedError: This Connection is closed` *after* the
+        # migration had already applied, so `alembic upgrade head` exited
+        # non-zero on a database that was in fact correctly migrated. Checked
+        # after the run it is also the only ordering that helps: the assertion
+        # is about the target database, not about the migration.
+        if settings.environment in {"staging", "production"}:
+            _assert_pgvector(connection)
+
     # DDL is committed as it goes; releasing before exit avoids holding a
     # connection open on Windows file locks.
     connectable.dispose()
-
-    if settings.environment in {"staging", "production"}:
-        # pgvector is required on the target database. Checked here rather than
-        # at model import so the failure names migrations, not the app.
-        _assert_pgvector(connection)
 
 
 def _assert_pgvector(connection) -> None:
