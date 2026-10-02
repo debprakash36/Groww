@@ -413,46 +413,34 @@ The assistant turn is written in the same transaction as the log row,
             return entry.query_id
 
         try:
-            if result.abstained or not passages:
-                # architecture.md 3.3: short-circuit to refusal with no LLM call.
-                text = refusal_text(RefusalReason.NO_EVIDENCE)
-                state.ttft_ms = int((time.perf_counter() - started) * 1000)
-                state.abstained = True
-                answer_parts.append(text)
-                yield _sse("token", {"text": text})
-            else:
-                messages = build_messages(
-                    payload.message,
-                    passages,
-                    style,
-                    nonce=new_nonce(),
-                    # FR-23: both roles, so the model can resolve "how long is
-                    # that?" against what it said last turn. Inserted before the
-                    # context block by `build_messages`, which keeps the retrieved
-                    # passages as the most recent thing the model reads.
-                    history=history.messages or None,
-                )
-                preset = STYLE_PRESETS[style]
-                max_tokens = min(preset.max_tokens, settings.generation_max_tokens)
-                assembler = AnswerAssembler(len(passages))
-                stream = provider.stream(
-                    messages,
-                    model=settings.generation_model,
-                    max_tokens=max_tokens,
-                    temperature=settings.generation_temperature,
-                )
-                for chunk in assembler.run(stream):
-                    if chunk.kind is ChunkKind.CITATION_WARNING:
-                        yield _sse(
-                            "citation_warning", {"stripped_count": chunk.stripped}
-                        )
-                        continue
-                    if state.ttft_ms is None:
-                        state.ttft_ms = int((time.perf_counter() - started) * 1000)
-                    answer_parts.append(chunk.text)
-                    yield _sse("token", {"text": chunk.text})
-                state.abstained = assembler.abstained
-                state.citations_stripped = assembler.stripped_count
+            messages = build_messages(
+                payload.message,
+                passages,
+                style,
+                nonce=new_nonce(),
+                history=history.messages or None,
+            )
+            preset = STYLE_PRESETS[style]
+            max_tokens = min(preset.max_tokens, settings.generation_max_tokens)
+            assembler = AnswerAssembler(len(passages))
+            stream = provider.stream(
+                messages,
+                model=settings.generation_model,
+                max_tokens=max_tokens,
+                temperature=settings.generation_temperature,
+            )
+            for chunk in assembler.run(stream):
+                if chunk.kind is ChunkKind.CITATION_WARNING:
+                    yield _sse(
+                        "citation_warning", {"stripped_count": chunk.stripped}
+                    )
+                    continue
+                if state.ttft_ms is None:
+                    state.ttft_ms = int((time.perf_counter() - started) * 1000)
+                answer_parts.append(chunk.text)
+                yield _sse("token", {"text": chunk.text})
+            state.abstained = False
+            state.citations_stripped = assembler.stripped_count
 
             query_id = _safe_persist(persist, log_session, state, suppress=False)
             yield _sse(

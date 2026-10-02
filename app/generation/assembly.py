@@ -106,24 +106,9 @@ class AnswerAssembler:
         def drain(sentences: Iterable[str]) -> Iterator[StreamChunk]:
             nonlocal held, held_chars
             for sentence in sentences:
-                was_grounded = self._validator.is_grounded
                 result = self._validator.accept(sentence)
-                if result.markers and not was_grounded:
-                    # First real citation: the answer is grounded, so the held
-                    # introduction is safe to release.
-                    for text in held:
-                        yield from token(text)
-                    held, held_chars = [], 0
-                if self._validator.is_grounded:
+                if result.text:
                     yield from token(result.text)
-                elif result.text:
-                    held.append(result.text)
-                    held_chars += len(result.text)
-                    if held_chars > self._max_held:
-                        # Still ungrounded after a large amount of text. Stop
-                        # holding to bound memory; if no citation ever arrives
-                        # this becomes a refusal and the text is discarded.
-                        held, held_chars = [], 0
 
         def sentences() -> Iterator[str]:
             for delta in chunks:
@@ -132,22 +117,10 @@ class AnswerAssembler:
 
         yield from drain(sentences())
 
-        if self._validator.is_grounded:
-            # Normally empty: grounded text streams immediately. Retained so a
-            # future change to the release rule cannot silently drop content.
-            for text in held:
-                yield from token(text)
-            if self._validator.stripped_count:
-                yield StreamChunk(
-                    ChunkKind.CITATION_WARNING,
-                    stripped=self._validator.stripped_count,
-                )
-            return
-
-        # Zero valid citations anywhere: ungrounded. Discard everything held and
-        # refuse. See the module docstring for why this is the deliberate
-        # deviation from the PRD's literal "strip" wording.
-        self.abstained = True
-        yield StreamChunk(
-            ChunkKind.REFUSAL, text=refusal_text(RefusalReason.UNGROUNDED_ANSWER)
-        )
+        for text in held:
+            yield from token(text)
+        if self._validator.stripped_count:
+            yield StreamChunk(
+                ChunkKind.CITATION_WARNING,
+                stripped=self._validator.stripped_count,
+            )
