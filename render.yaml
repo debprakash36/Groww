@@ -118,7 +118,7 @@ services:
     runtime: node
     plan: starter
     rootDir: web
-    buildCommand: npm ci && npm run build
+    buildCommand: npm install && npm run build
     startCommand: npm start
     healthCheckPath: /
     envVars:
